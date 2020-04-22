@@ -1,0 +1,51 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>com.omgd.grpcclient</groupId>
+  <artifactId>grpc-dynamic-client</artifactId>
+  <version>1.0.0</version>
+  <packaging>jar</packaging>
+
+  <name>grpc-dynamic-client</name>
+  <url>http://maven.apache.org</url>
+
+  <properties>
+    <maven.compiler.target>1.8</maven.compiler.target>
+    <maven.compiler.source>1.8</maven.compiler.source>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <protobuf-java-util.version>3.11.4</protobuf-java-util.version>
+    <protobuf-dynamic.version>1.0.0</protobuf-dynamic.version>
+    <protoparser.version>4.0.3</protoparser.version>
+    <grpc.version>1.24.2</grpc.version>
+  </properties>
+
+  <dependencies>
+    <dependency>
+        <groupId>com.google.protobuf</groupId>
+        <artifactId>protobuf-java-util</artifactId>
+        <version>${protobuf-java-util.version}</version>
+    </dependency>
+    <dependency>
+        <groupId>com.github.os72</groupId>
+        <artifactId>protobuf-dynamic</artifactId>
+        <version>${protobuf-dynamic.version}</version>
+    </dependency>
+    <dependency>
+        <groupId>com.squareup</groupId>
+        <artifactId>protoparser</artifactId>
+        <version>${protoparser.version}</version>
+    </dependency>
+    <dependency>
+        <groupId>io.grpc</groupId>
+        <artifactId>grpc-all</artifactId>
+        <version>${grpc.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>junit</groupId>
+      <artifactId>junit</artifactId>
+      <version>3.8.1</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+</project>
