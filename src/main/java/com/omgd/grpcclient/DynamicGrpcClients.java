@@ -14,6 +14,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.github.os72.protobuf.dynamic.DynamicSchema;
+import com.github.os72.protobuf.dynamic.EnumDefinition;
 import com.github.os72.protobuf.dynamic.MessageDefinition;
 import com.google.common.base.Strings;
 import com.google.common.io.ByteStreams;
@@ -21,6 +22,7 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.google.protobuf.Descriptors.DescriptorValidationException;
 import com.google.protobuf.DynamicMessage;
 import com.google.protobuf.InvalidProtocolBufferException;
+import com.squareup.protoparser.EnumElement;
 import com.squareup.protoparser.FieldElement;
 import com.squareup.protoparser.MessageElement;
 import com.squareup.protoparser.ProtoFile;
@@ -74,6 +76,9 @@ public class DynamicGrpcClients {
 
     public static void registerClient(GrpcClientConfig clientCfg) {
         clientCfg.validate();
+        if (SCHEMA_MAP.containsKey(clientCfg.getName())) {
+            throw new IllegalArgumentException(String.format("client[ %s ] already registered, please unRegisterClient first", clientCfg.getName()));
+        }
         initSchema(clientCfg);
         initChannel(clientCfg);
     }
@@ -81,8 +86,13 @@ public class DynamicGrpcClients {
     public static void unRegisterClient(String name) {
         SCHEMA_MAP.remove(name);
         SERVER_MAP.remove(name);
-        CHANNEL_MAP.remove(name);
         CHANNEL_CURSOR_MAP.remove(name);
+        ManagedChannel[] channels = CHANNEL_MAP.remove(name);
+        if (channels != null) {
+            for (ManagedChannel channel : channels) {
+                channel.shutdownNow();
+            }
+        }
     }
 
     public GrpcResponse execute() {
@@ -99,6 +109,8 @@ public class DynamicGrpcClients {
             code = GrpcCode.ERROR;
             msg = e.getMessage();
         } catch (TimeoutException e) {
+            // trigger reconnection when timeout occurs
+            channel.enterIdle();
             code = GrpcCode.TIMEOUT;
         }
         
@@ -192,13 +204,20 @@ public class DynamicGrpcClients {
         }
         DynamicSchema.Builder schemaBuilder = DynamicSchema.newBuilder();
         typeList.forEach(typeElement -> {
-            MessageElement element = (MessageElement) typeElement;
-            List<FieldElement> fields = element.fields();
-            MessageDefinition.Builder definitionBuilder = MessageDefinition.newBuilder(element.name());
-            fields.forEach(field -> definitionBuilder.addField(field.label().name().toLowerCase(),
-                    field.type().toString(), field.name(), field.tag()));
-            MessageDefinition definition = definitionBuilder.build();
-            schemaBuilder.addMessageDefinition(definition);
+            if (typeElement instanceof EnumElement) {
+                EnumElement element = (EnumElement) typeElement;
+                EnumDefinition.Builder definitionBuilder = EnumDefinition.newBuilder(element.name());
+                element.constants().forEach(field -> definitionBuilder.addValue(field.name(), field.tag()));
+                EnumDefinition definition = definitionBuilder.build();
+                schemaBuilder.addEnumDefinition(definition);
+            } else if (typeElement instanceof MessageElement) {
+                MessageElement element = (MessageElement) typeElement;
+                List<FieldElement> fields = element.fields();
+                MessageDefinition.Builder definitionBuilder = MessageDefinition.newBuilder(element.name());
+                fields.forEach(field -> definitionBuilder.addField(field.label().name().toLowerCase(), field.type().toString(), field.name(), field.tag()));
+                MessageDefinition definition = definitionBuilder.build();
+                schemaBuilder.addMessageDefinition(definition);
+            }
         });
 
         Map<String,String[]> serviceMap = new HashMap<>(serviceList.size());
@@ -250,7 +269,7 @@ public class DynamicGrpcClients {
                 }
             }
         } catch (Exception e) {
-            // e.printStackTrace();
+            e.printStackTrace();
         }
 
         AtomicInteger channelCursor = new AtomicInteger(0);
@@ -273,7 +292,7 @@ public class DynamicGrpcClients {
                 .setRequestMarshaller(new ByteArrayMarshaller()).setResponseMarshaller(new ByteArrayMarshaller())
                 .setType(MethodType.UNARY).setFullMethodName(api).build();
         ListenableFuture<byte[]> future = ClientCalls
-                .futureUnaryCall(channel.newCall(methodDescriptor, CallOptions.DEFAULT), request);
+                .futureUnaryCall(channel.newCall(methodDescriptor, CallOptions.DEFAULT.withDeadlineAfter(timeout, TimeUnit.MILLISECONDS)), request);
         byte[] reply = future.get(timeout, TimeUnit.MILLISECONDS);
 
         // 3）unserialize response

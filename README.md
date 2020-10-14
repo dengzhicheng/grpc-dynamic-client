@@ -5,6 +5,7 @@ A dynamic grpc client does not rely on the generated code, the input and output 
 
 * Do not rely on the generated code.
 * Support dynamic registration and modification of clients.
+* Support grpc client simple connection pool.
 
 ## Usage
 
